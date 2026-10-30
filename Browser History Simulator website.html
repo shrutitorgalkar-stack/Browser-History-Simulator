@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Browser History Simulator</title>
+<style>
+:root{--bg:#f3f6f4;--ink:#12251f;--mut:#5b6e66;--card:#fff;--line:#cfdad4;--acc:#0f766e;--back:#b45309;--fwd:#1d4ed8;--cur:#e6f4f1;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1815;--ink:#e6f1ed;--mut:#92a89f;--card:#15241f;--line:#2a3f38;--acc:#2dd4bf;--back:#fbbf24;--fwd:#7aa2ff;--cur:#173a33;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1815;--ink:#e6f1ed;--mut:#92a89f;--card:#15241f;--line:#2a3f38;--acc:#2dd4bf;--back:#fbbf24;--fwd:#7aa2ff;--cur:#173a33;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+h1{font:700 clamp(26px,5vw,40px)/1.1 Georgia,serif;margin:8px 0 6px}
+.sub{color:var(--mut);margin:0 0 18px;max-width:60ch}
+.badge{display:inline-block;font-size:13px;border:1px solid var(--line);border-radius:99px;padding:2px 10px;margin-right:6px;color:var(--mut)}
+.bar{display:flex;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;margin:16px 0}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 14px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+button.go{background:var(--acc);color:#fff;border-color:var(--acc)}
+:root:not([data-theme="light"]) button.go{color:#04201c}
+input{flex:1;min-width:0;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--bg);color:var(--ink)}
+.page{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.page b{font-size:13px;color:var(--mut);font-weight:600}
+.page .url{font:600 20px Georgia,serif;word-break:break-all}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.quick button{font-size:14px;padding:5px 10px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:620px){.cols{grid-template-columns:1fr}}
+.stack{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;min-height:200px}
+.stack h2{font-size:17px;margin:0}
+.stack small{display:block;color:var(--mut);margin-bottom:10px}
+.slots{display:flex;flex-direction:column-reverse;gap:6px;border-bottom:4px solid var(--line);padding-bottom:6px;min-height:120px;justify-content:flex-start}
+.item{padding:8px 10px;border-radius:6px;border:1px solid var(--line);border-left-width:5px;word-break:break-all;font-size:14px}
+.back .item{border-left-color:var(--back)}.fwd .item{border-left-color:var(--fwd)}
+.item.top::after{content:" ← top";color:var(--mut);font-size:12px}
+.empty{color:var(--mut);font-size:14px;text-align:center;align-self:center;padding:30px 0}
+@media(prefers-reduced-motion:no-preference){.item.new{animation:pop .3s}}
+@keyframes pop{from{transform:translateY(-14px);opacity:0}}
+.log,.hist{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:16px}
+.log h2,.hist h2{font-size:17px;margin:0 0 8px}
+.log ol{list-style:none;margin:0;padding:0;max-height:180px;overflow:auto;font:13px/1.7 ui-monospace,Menlo,monospace}
+.log .push{color:var(--acc)}.log .pop{color:var(--back)}
+.hist ol{margin:0;padding-left:22px}.hist li{word-break:break-all}.hist li.cur{background:var(--cur);font-weight:700;border-radius:4px}
+</style>
+</head>
+<body>
+<main>
+<h1>Browser History Simulator</h1>
+<p class="sub">See how a browser remembers visited pages and moves backward and forward, using two stacks.</p>
+<span class="badge">Difficulty: Easy–Medium</span><span class="badge">Languages: C / C++ / Python</span>
+
+<form class="bar" id="f" onsubmit="return false">
+<button type="button" id="b" aria-label="Back">◀ Back</button>
+<button type="button" id="n" aria-label="Forward">Forward ▶</button>
+<input id="u" placeholder="Add a website URL, e.g. google.com" aria-label="Website URL" autocomplete="off">
+<button type="submit" class="go" id="v">Visit</button>
+</form>
+<div class="quick" id="q"></div>
+
+<section class="page"><b>Current page</b><div class="url" id="cur">—</div></section>
+
+<section class="cols">
+<div class="stack back"><h2>Back stack</h2><small>Pages you can go back to</small><div class="slots" id="bs"></div></div>
+<div class="stack fwd"><h2>Forward stack</h2><small>Pages you can go forward to</small><div class="slots" id="fs"></div></div>
+</section>
+
+<section class="log"><h2>PUSH / POP operations</h2><ol id="log" aria-live="polite"></ol></section>
+<section class="hist"><h2>Browsing history</h2><ol id="h"></ol></section>
+<p class="sub" style="margin-top:20px"><b>How it works:</b> Visiting a page pushes the current page onto the Back stack and clears the Forward stack. Back pops from Back and pushes the current page onto Forward. Forward does the reverse.</p>
+</main>
+<script>
+var back=[],fwd=[],cur=null,hist=[],ops=[],$=function(i){return document.getElementById(i)};
+function log(t,c){ops.unshift('<li class="'+c+'">'+t+'</li>');ops=ops.slice(0,40)}
+function esc(s){return s.replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function visit(url){
+ url=url.trim().replace(/^https?:\/\//,'').replace(/\/$/,'');
+ if(!url)return;
+ if(cur!==null){back.push(cur);log('PUSH '+esc(cur)+' → Back','push')}
+ if(fwd.length){log('CLEAR Forward stack ('+fwd.length+' pages)','pop');fwd=[]}
+ cur=url;hist.push(url);log('VISIT '+esc(url),'push');render(true)}
+function goBack(){if(!back.length)return;
+ var p=back.pop();log('POP '+esc(p)+' ← Back','pop');
+ fwd.push(cur);log('PUSH '+esc(cur)+' → Forward','push');cur=p;hist.push(cur);render()}
+function goFwd(){if(!fwd.length)return;
+ var p=fwd.pop();log('POP '+esc(p)+' ← Forward','pop');
+ back.push(cur);log('PUSH '+esc(cur)+' → Back','push');cur=p;hist.push(cur);render()}
+function stack(el,a,isNew){
+ if(!a.length){el.innerHTML='<div class="empty">Empty</div>';return}
+ el.innerHTML=a.map(function(x,i){var t=i===a.length-1;return '<div class="item'+(t?' top':'')+(t&&isNew?' new':'')+'">'+esc(x)+'</div>'}).join('')}
+function render(isNew){
+ $('cur').textContent=cur||'—';
+ stack($('bs'),back,isNew);stack($('fs'),fwd,false);
+ $('b').disabled=!back.length;$('n').disabled=!fwd.length;
+ $('log').innerHTML=ops.join('')||'<li>No operations yet. Visit a page.</li>';
+ $('h').innerHTML=hist.length?hist.map(function(x,i){return '<li'+(i===hist.length-1?' class="cur"':'')+'>'+esc(x)+'</li>'}).join(''):'<li>No pages visited yet.</li>'}
+$('f').addEventListener('submit',function(){visit($('u').value);$('u').value=''});
+$('b').onclick=goBack;$('n').onclick=goFwd;
+['google.com','wikipedia.org','github.com','youtube.com','news.ycombinator.com'].forEach(function(s){
+ var b=document.createElement('button');b.type='button';b.textContent='+ '+s;b.onclick=function(){visit(s)};$('q').appendChild(b)});
+render();
+</script>
+</body>
+</html>
